@@ -1,4 +1,5 @@
 #include "MonteCarlo.h"
+#include <cstdio>
 
 double phi_[SIZE_T][SIZE_X];                // Obnullit nado!!!
 
@@ -17,8 +18,7 @@ double phi_0_0phi_0_x[SIZE_X];
 
 void average()
 {
-	FILE* phi_sol;
-	fopen_s(&phi_sol, "phi_sol.txt", "w+");
+	FILE* phi_sol = std::fopen("phi_sol.txt", "w+");
 
 	for (int j = 0; j < SIZE_T; ++j) {
 		energy_[j] = 0;
@@ -107,8 +107,7 @@ void average()
 
 void calculate_observables()
 {
-	FILE* phi_sol;
-	fopen_s(&phi_sol, "phi_sol.txt", "r");
+	FILE* phi_sol = std::fopen("phi_sol.txt", "r");
 
 	for (int i = 0; i < M; ++i) {
 		// somehow read phi[j][i] Mth array
@@ -151,26 +150,18 @@ void calculate_observables()
 
 	fclose(phi_sol);
 
-	FILE* phi_aver;
-	fopen_s(&phi_aver, "phi_aver.txt", "w+");
+	FILE* phi_aver = std::fopen("phi_aver.txt", "w+");
 
-	FILE* energy_dens_aver;
-	fopen_s(&energy_dens_aver, "energy_dens_aver.txt", "w+");
-	FILE* energy_dens_kin_aver;
-	fopen_s(&energy_dens_kin_aver, "energy_dens_kin_aver.txt", "w+");
-	FILE* energy_dens_inter_aver;
-	fopen_s(&energy_dens_inter_aver, "energy_dens_inter_aver.txt", "w+");
-	FILE* energy_dens_grad_aver;
-	fopen_s(&energy_dens_grad_aver, "energy_dens_grad_aver.txt", "w+");
+	FILE* energy_dens_aver = std::fopen("energy_dens_aver.txt", "w+");
+	FILE* energy_dens_kin_aver = std::fopen("energy_dens_kin_aver.txt", "w+");
+	FILE* energy_dens_inter_aver = std::fopen("energy_dens_inter_aver.txt", "w+");
+	FILE* energy_dens_grad_aver = std::fopen("energy_dens_grad_aver.txt", "w+");
 
-	FILE* energy_aver;
-	fopen_s(&energy_aver, "energy_aver.txt", "w+");
+	FILE* energy_aver = std::fopen("energy_aver.txt", "w+");
 
-	FILE* phi_0_0phi_t_0_aver;
-	fopen_s(&phi_0_0phi_t_0_aver, "phi_0_0phi_t_0_aver.txt", "w+");
+	FILE* phi_0_0phi_t_0_aver = std::fopen("phi_0_0phi_t_0_aver.txt", "w+");
 
-	FILE* phi_0_0phi_0_x_aver;
-	fopen_s(&phi_0_0phi_0_x_aver, "phi_0_0phi_0_x_aver.txt", "w+");
+	FILE* phi_0_0phi_0_x_aver = std::fopen("phi_0_0phi_0_x_aver.txt", "w+");
 
 	for (int j = 0; j < SIZE_T; ++j) {
 		for (int i = 0; i < SIZE_X; ++i) {
