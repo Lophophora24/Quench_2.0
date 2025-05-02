@@ -22,9 +22,9 @@
 #define SIZE_T (int)(T)
 
 #define m 2.
-#define g 100.
+#define g 10.
 
-#define TMP 5.
+#define TMP 10.
 
 #define al 15.
 #define x_q 5.

@@ -1,167 +1,135 @@
-#include "MonteCarlo.h"
-#include <cstdio>
+п»ї#include "MonteCarlo.h"
+#include "omp.h"
 
-double phi_[SIZE_T][SIZE_X];                // Obnullit nado!!!
+double phi_[SIZE_T][SIZE_X];                 // <phi(t,x)>
 
-double energy_density_[SIZE_T][SIZE_X];
-double energy_density_kin[SIZE_T][SIZE_X];   // кинетическая часть
-double energy_density_inter[SIZE_T][SIZE_X]; // взаимодействующая часть
-double energy_density_grad[SIZE_T][SIZE_X];  // часть с градиентом
+											 // Оµ(t,x) = Оµ_kin(t,x) + Оµ_grad(t,x) + Оµ_inter(t,x)
+double energy_density_[SIZE_T][SIZE_X];      // <Оµ(t,x)> 
+double energy_density_kin[SIZE_T][SIZE_X];   // <Оµ_kin(t,x)>
+double energy_density_inter[SIZE_T][SIZE_X]; // <Оµ_inter(t,x)>
+double energy_density_grad[SIZE_T][SIZE_X];  // <Оµ_grad(t,x)>
 
-double energy_[SIZE_T];
-double energy_kin[SIZE_T];
-double energy_inter[SIZE_T];
-double energy_grad[SIZE_T];
-
-double phi_0_0phi_t_0[SIZE_T];
-double phi_0_0phi_0_x[SIZE_X];
+											 // E = E_kin + E_grad + E_inter
+double energy_[SIZE_T];						 // E
+double energy_kin[SIZE_T];                   // E_kin
+double energy_inter[SIZE_T];                 // E_inter
+double energy_grad[SIZE_T];                  // E_grad
+						
+											 // Correlation functions
+double phi_0_0phi_t_0[SIZE_T];               // <П†(0,0)П†(t,0)>
+double phi_0_0phi_0_x[SIZE_X];               // <П†(0,0)П†(0,x)>
 
 void average()
 {
-	FILE* phi_sol = std::fopen("phi_sol.txt", "w+");
-
+	std::cout << "Starting average()....\n";
+	// Obnulenie vseh massivov //
 	for (int j = 0; j < SIZE_T; ++j) {
-		energy_[j] = 0;
-		energy_kin[j] = 0;
+		energy_[j]      = 0;
+		energy_kin[j]   = 0;
 		energy_inter[j] = 0;
-		energy_grad[j] = 0;
+		energy_grad[j]  = 0;
 		for (int i = 0; i < SIZE_X; ++i) {
-			phi_[j][i] = 0;
-			energy_density_[j][i] = 0;
-			energy_density_kin[j][i] = 0;
+			phi_[j][i]                 = 0;
+			energy_density_[j][i]      = 0;
+			energy_density_kin[j][i]   = 0;
 			energy_density_inter[j][i] = 0;
-			energy_density_grad[j][i] = 0;
+			energy_density_grad[j][i]  = 0;
 			
-			phi_0_0phi_t_0[j] = 0;
-			phi_0_0phi_0_x[i] = 0;
+			phi_0_0phi_t_0[j]          = 0;
+			phi_0_0phi_0_x[i]          = 0;
 		}
 	}
 
-	for (int s = 1; s <= M; ++s) {
-		solve_with_cond(s-1);
+	//std::cout << "Starting parallel section....\n";
+	//#pragma omp parallel reduction (+:phi_)
+	 
+		#pragma omp parallel for		
+		for (int s = 1; s <= M; ++s) {
+			
+			//double phi_local[SIZE_T][SIZE_X];
+			
+			double** phi_local;
 
-		// Fill the file with phi[t][x]
-		std::cout << "solved eq # " << s << '\n';
-
-		// убрать этот цикл когда будем писать в файл phi_sol.txt
-		for (int j = 0; j < SIZE_T - 1; ++j) {
-
-			for (int i = 0; i < SIZE_X; ++i) {
-
-				phi_[j][i] += phi[j][i] / M;
-
-				energy_density_kin[j][i] += (0.5 * pow(((phi[j + 1][i] - phi[j][i]) / t), 2)) / M;
-
-				energy_density_inter[j][i] += (0.25 * g * pow(phi[j][i], 4)) / M;
-
-				energy_[j] += energy_density_[j][i] * h;
-				energy_kin[j] += energy_density_kin[j][i] * h;
-				energy_inter[j] += energy_density_inter[j][i] * h;
-				energy_grad[j] += energy_density_grad[j][i] * h;
-
-				
-				
-
-
-				// Check signs!!!
-				if (i == SIZE_X - 1) {
-					energy_density_[j][i] += (0.5 * pow(((phi[j + 1][i] - phi[j][i]) / t), 2) + 0.5 * ((phi[j + 1][1] - phi[j + 1][i]) / h) * ((phi[j][1] - phi[j][i]) / h) + 0.5 * (F(j + 1, i) + F(j, i))) / M;
-
-					energy_density_grad[j][i] += (0.5 * ((phi[j + 1][1] - phi[j + 1][i]) / h) * ((phi[j][1] - phi[j][i]) / h)) / M;
-				
-					
-				}
-				else {
-					energy_density_[j][i] += (0.5 * pow(((phi[j + 1][i] - phi[j][i]) / t), 2) + 0.5 * ((phi[j + 1][i + 1] - phi[j + 1][i]) / h) * ((phi[j][i + 1] - phi[j][i]) / h) + 0.5 * (F(j + 1, i) + F(j, i))) / M;
-
-					
-
-					energy_density_grad[j][i] += (0.5 * ((phi[j + 1][i + 1] - phi[j + 1][i]) / h) * ((phi[j][i + 1] - phi[j][i]) / h)) / M;
-
-					
+			phi_local = (double**)malloc(SIZE_T * sizeof(double*));
+			//std::cout << phi_local << '\n';
+			for (int j = 0; j < SIZE_T; ++j) {
+				phi_local[j] = (double*)malloc(SIZE_X * sizeof(double));
+				for (int i = 0; i < SIZE_X; ++i) {
+					phi_local[j][i] = 0;
 				}
 			}
 
-			phi_0_0phi_t_0[j] += (phi[0][0] * phi[j][0]) / M;
+			solve_with_cond(s - 1, phi_local);
 
-		}
+			// Fill the file with phi[t][x]
+			std::cout << "solved eq # " << s << '\n';
+			
+			//std::cout << omp_get_thread_num() << '\n';
+			//std::cout << omp_get_max_threads() << '\n';
 
-		for (int i = 0; i < SIZE_X; ++i) {
-			phi_0_0phi_0_x[i] += (phi[0][0] * phi[0][i]) / M;
-		}
+			//#pragma omp parallel for
+			for (int j = 0; j < SIZE_T - 1; ++j) {
+				for (int i = 0; i < SIZE_X; ++i) {
 
-		/* Раскомментировать это когда будем писать в файл phi_sol.txt
-		for (int j = 0; j < SIZE_T; ++j) {
-			for (int i = 0; i < SIZE_X; ++i) {
-				fprintf(phi_sol, "%20.3lf", phi[j][i]);
+					#pragma omp atomic
+					phi_[j][i] += phi_local[j][i] / M;
+					
+					energy_density_kin[j][i] += (0.5 * pow(((phi_local[j + 1][i] - phi_local[j][i]) / t), 2)) / M;
+
+					energy_density_inter[j][i] += (0.25 * g * pow(phi_local[j][i], 4)) / M;
+
+					energy_[j] += energy_density_[j][i] * h;
+					energy_kin[j] += energy_density_kin[j][i] * h;
+					energy_inter[j] += energy_density_inter[j][i] * h;
+					energy_grad[j] += energy_density_grad[j][i] * h;
+					
+					
+					if (i == SIZE_X - 1) {
+						energy_density_[j][i] += (0.5 * pow(((phi_local[j + 1][i] - phi_local[j][i]) / t), 2) + 0.5 * ((phi_local[j + 1][1] - phi_local[j + 1][i]) / h) * ((phi_local[j][1] - phi_local[j][i]) / h) + 0.5 * (F(j + 1, i, phi_local) + F(j, i, phi_local))) / M;
+						energy_density_grad[j][i] += (0.5 * ((phi_local[j + 1][1] - phi_local[j + 1][i]) / h) * ((phi_local[j][1] - phi_local[j][i]) / h)) / M;
+					}
+					else {
+						energy_density_[j][i] += (0.5 * pow(((phi_local[j + 1][i] - phi_local[j][i]) / t), 2) + 0.5 * ((phi_local[j + 1][i + 1] - phi_local[j + 1][i]) / h) * ((phi_local[j][i + 1] - phi_local[j][i]) / h) + 0.5 * (F(j + 1, i, phi_local) + F(j, i, phi_local))) / M;
+						energy_density_grad[j][i] += (0.5 * ((phi_local[j + 1][i + 1] - phi_local[j + 1][i]) / h) * ((phi_local[j][i + 1] - phi_local[j][i]) / h)) / M;
+					}
+				}
+				phi_0_0phi_t_0[j] += (phi_local[0][0] * phi_local[j][0]) / M;
 			}
-			fprintf(phi_sol, "\n");
+			
+			for (int i = 0; i < SIZE_X; ++i) {
+				phi_0_0phi_0_x[i] += (phi_local[0][0] * phi_local[0][i]) / M;
+			} 
+
+			for (int j = 0; j < SIZE_T; ++j) {
+				free(phi_local[j]);
+			}
+			free(phi_local);
 		}
-
-		fprintf(phi_sol, "\n");
-		*/
-	}
-
-	fclose(phi_sol);
+	
 }
 
 void calculate_observables()
 {
-	FILE* phi_sol = std::fopen("phi_sol.txt", "r");
+	FILE* phi_aver;
+	fopen_s(&phi_aver, "phi_aver.txt", "w+");
 
-	for (int i = 0; i < M; ++i) {
-		// somehow read phi[j][i] Mth array
-		/* Раскомментировать это когда будем писать в файл phi_sol.txt
-		for (int j = 0; j < SIZE_T; ++j) {
-			for (int i = 0; i < SIZE_X; ++i) {
-				fscanf_s(phi_sol, "%lf", &phi[j][i]);
-			}
-		}
-		*/
-		/*
-		std::cout << "Read " << i << "th array\n";
-		for (int j = 0; j < SIZE_T; ++j) {
-			for (int i = 0; i < SIZE_X; ++i) {
-				printf("%20.3lf", phi[j][i]);
-			}
-			printf("\n");
-		}
-		printf("\n");
-		*/
-		/* Раскомментировать это когда будем писать в файл phi_sol.txt
-		for (int j = 0; j < SIZE_T-1; ++j) {
-			for (int i = 0; i < SIZE_X; ++i) {
+	FILE* energy_dens_aver;
+	fopen_s(&energy_dens_aver, "energy_dens_aver.txt", "w+");
+	FILE* energy_dens_kin_aver;
+	fopen_s(&energy_dens_kin_aver, "energy_dens_kin_aver.txt", "w+");
+	FILE* energy_dens_inter_aver;
+	fopen_s(&energy_dens_inter_aver, "energy_dens_inter_aver.txt", "w+");
+	FILE* energy_dens_grad_aver;
+	fopen_s(&energy_dens_grad_aver, "energy_dens_grad_aver.txt", "w+");
 
-				phi_[j][i] += phi[j][i] / M;
+	FILE* energy_aver;
+	fopen_s(&energy_aver, "energy_aver.txt", "w+");
 
+	FILE* phi_0_0phi_t_0_aver;
+	fopen_s(&phi_0_0phi_t_0_aver, "phi_0_0phi_t_0_aver.txt", "w+");
 
-				// Check signs!!!
-				if (i == SIZE_X - 1) {
-					energy_density_[j][i] += (0.5 * pow(((phi[j + 1][i] - phi[j][i]) / t), 2) + 0.5 * ((phi[j + 1][1] - phi[j + 1][i]) / h) * ((phi[j][1] - phi[j][i]) / h) + 0.5 * (F(j + 1, i) + F(j, i))) / M;
-				}
-				else {
-					energy_density_[j][i] += (0.5 * pow(((phi[j + 1][i] - phi[j][i]) / t), 2) + 0.5 * ((phi[j + 1][i + 1] - phi[j + 1][i]) / h) * ((phi[j][i + 1] - phi[j][i]) / h) + 0.5 * (F(j + 1, i) + F(j, i))) / M;
-				}
-			}
-		}
-		*/
-		
-	}
-
-	fclose(phi_sol);
-
-	FILE* phi_aver = std::fopen("phi_aver.txt", "w+");
-
-	FILE* energy_dens_aver = std::fopen("energy_dens_aver.txt", "w+");
-	FILE* energy_dens_kin_aver = std::fopen("energy_dens_kin_aver.txt", "w+");
-	FILE* energy_dens_inter_aver = std::fopen("energy_dens_inter_aver.txt", "w+");
-	FILE* energy_dens_grad_aver = std::fopen("energy_dens_grad_aver.txt", "w+");
-
-	FILE* energy_aver = std::fopen("energy_aver.txt", "w+");
-
-	FILE* phi_0_0phi_t_0_aver = std::fopen("phi_0_0phi_t_0_aver.txt", "w+");
-
-	FILE* phi_0_0phi_0_x_aver = std::fopen("phi_0_0phi_0_x_aver.txt", "w+");
+	FILE* phi_0_0phi_0_x_aver;
+	fopen_s(&phi_0_0phi_0_x_aver, "phi_0_0phi_0_x_aver.txt", "w+");
 
 	for (int j = 0; j < SIZE_T; ++j) {
 		for (int i = 0; i < SIZE_X; ++i) {
@@ -201,5 +169,4 @@ void calculate_observables()
 	fclose(energy_aver);
 	fclose(phi_0_0phi_t_0_aver);
 	fclose(phi_0_0phi_0_x_aver);
-
 }
