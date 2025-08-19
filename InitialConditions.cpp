@@ -165,3 +165,191 @@ void generate_initial_conditions(int iter_num)
     phi_0[SIZE_X - 1] = phi_0[0];
     pi_0[SIZE_X - 1] = pi_0[0];
 }
+
+double tang(double omega)
+{
+    return 2 * TMP / omega * tanh(omega / (2 * TMP));
+}
+
+void generate_initial_conditions_thermal()
+{
+    std::random_device rd;
+    std::mt19937 gen(rd());
+
+    std::vector<std::complex<double>> phi_k(SIZE_X);
+    std::vector<std::complex<double>> pi_k(SIZE_X);
+
+    std::vector<double> phi_x(SIZE_X);
+    std::vector<double> pi_x(SIZE_X);
+
+    fftw_plan plan_phi = fftw_plan_dft_c2r_1d(
+        SIZE_X,
+        reinterpret_cast<fftw_complex*>(phi_k.data()),
+        phi_x.data(),
+        FFTW_ESTIMATE
+    );
+
+    fftw_plan plan_pi = fftw_plan_dft_c2r_1d(
+        SIZE_X,
+        reinterpret_cast<fftw_complex*>(pi_k.data()),
+        pi_x.data(),
+        FFTW_ESTIMATE
+    );
+
+    std::vector<double> omega_k(SIZE_X);
+    for (int i = 0; i < SIZE_X; ++i) {
+        double k = (i <= SIZE_X / 2) ? 2. * PI * i / L
+            : 2. * PI * (i - SIZE_X) / L;
+
+        double k_eff = (2. / h) * std::sin(k * h / 2.);
+        omega_k[i] = std::sqrt(k_eff * k_eff + m * m);
+    }
+
+    for (int k = 0; k < M; ++k) {
+        for (int i = 0; i <= SIZE_X / 2; ++i) {
+            int j = (SIZE_X - i) % SIZE_X;
+
+            std::normal_distribution<double> dist(0.0, 1.0);
+
+            if (i == 0 || (SIZE_X % 2 == 0 && SIZE_X == N / 2)) {
+                double re_phi = dist(gen) * std::sqrt(L / (tang(omega_k[i]) * omega_k[i] * omega_k[i] * TMP));
+                double re_pi = dist(gen) * std::sqrt(L / (tang(omega_k[i] * TMP)));
+
+                phi_k[i] = re_phi;
+                pi_k[i] = re_pi;
+
+                if (i != 0) {
+                    phi_k[j] = re_phi;
+                    pi_k[j] = re_pi;
+                }
+            }
+            else {
+                double re_phi = dist(gen) * std::sqrt(L / (2 * tang(omega_k[i]) * omega_k[i] * omega_k[i] * TMP));
+                double im_phi = dist(gen) * std::sqrt(L / (2 * tang(omega_k[i]) * omega_k[i] * omega_k[i] * TMP));
+                double re_pi = dist(gen) * std::sqrt(L / (2 * tang(omega_k[i] * TMP)));
+                double im_pi = dist(gen) * std::sqrt(L / (2 * tang(omega_k[i] * TMP)));
+
+                phi_k[i] = std::complex<double>(re_phi, im_phi);
+                phi_k[j] = std::complex<double>(re_phi, -im_phi);
+
+                pi_k[i] = std::complex<double>(re_pi, im_pi);
+                pi_k[j] = std::complex<double>(re_pi, -im_pi);
+            }
+        }
+
+        fftw_execute(plan_phi);
+        fftw_execute(plan_pi);
+
+        for (int i = 0; i < SIZE_X; ++i) {
+            phi_x[i] /= (h * SIZE_X);
+            pi_x[i] /= (h * SIZE_X);
+        }
+
+        for (int i = 0; i < SIZE_X - 1; ++i) {
+            samples_phi(i, k) = phi_x[i];
+            samples_pi(i, k) = pi_x[i];
+        }
+    }
+
+    fftw_destroy_plan(plan_phi);
+    fftw_destroy_plan(plan_pi);
+
+}
+
+void generate_initial_conditions_vacuum()
+{
+    std::random_device rd;
+    std::mt19937 gen(rd());
+
+    std::vector<std::complex<double>> phi_k(SIZE_X);
+    std::vector<std::complex<double>> pi_k(SIZE_X);
+
+    std::vector<double> phi_x(SIZE_X);
+    std::vector<double> pi_x(SIZE_X);
+
+    fftw_plan plan_phi = fftw_plan_dft_c2r_1d(
+        SIZE_X,
+        reinterpret_cast<fftw_complex*>(phi_k.data()),
+        phi_x.data(),
+        FFTW_ESTIMATE
+    );
+
+    fftw_plan plan_pi = fftw_plan_dft_c2r_1d(
+        SIZE_X,
+        reinterpret_cast<fftw_complex*>(pi_k.data()),
+        pi_x.data(),
+        FFTW_ESTIMATE
+    );
+
+    std::vector<double> omega_k(SIZE_X);
+    for (int i = 0; i < SIZE_X; ++i) {
+        double k = (i <= SIZE_X / 2) ? 2. * PI * i / L 
+                                     : 2. * PI * (i - SIZE_X) / L;
+
+        double k_eff = (2. / h) * std::sin(k * h / 2.);
+        omega_k[i] = std::sqrt(k_eff * k_eff + m * m);
+    }
+
+    for (int k = 0; k < M; ++k) {
+        for (int i = 0; i <= SIZE_X / 2; ++i) {
+            int j = (SIZE_X - i) % SIZE_X;
+
+            std::normal_distribution<double> dist(0.0, 1.0);
+
+            if (i == 0 || (SIZE_X % 2 == 0 && SIZE_X == N / 2)) {
+                double re_phi = dist(gen) * std::sqrt(L / (2 * omega_k[i]));
+                double re_pi = dist(gen) * std::sqrt(L * omega_k[i] / 2.);
+
+                phi_k[i] = re_phi;
+                pi_k[i] = re_pi;
+
+                if (i != 0) {
+                    phi_k[j] = re_phi;
+                    pi_k[j] = re_pi;
+                }
+            }
+            else {
+                double re_phi = dist(gen) * std::sqrt(L / (4.0 * omega_k[i]));
+                double im_phi = dist(gen) * std::sqrt(L / (4.0 * omega_k[i]));
+                double re_pi = dist(gen) * std::sqrt(L * omega_k[i] / 4.0);
+                double im_pi = dist(gen) * std::sqrt(L * omega_k[i] / 4.0);
+
+                phi_k[i] = std::complex<double>(re_phi, im_phi);
+                phi_k[j] = std::complex<double>(re_phi, -im_phi);
+
+                pi_k[i] = std::complex<double>(re_pi, im_pi);
+                pi_k[j] = std::complex<double>(re_pi, -im_pi);
+            }
+        }
+
+        fftw_execute(plan_phi);
+        fftw_execute(plan_pi);
+
+        for (int i = 0; i < SIZE_X; ++i) {
+            phi_x[i] /= (h * SIZE_X);
+            pi_x[i] /= (h * SIZE_X);
+        }
+
+        for (int i = 0; i < SIZE_X-1; ++i) {
+            samples_phi(i, k) = phi_x[i];
+            samples_pi(i, k) = pi_x[i];
+        }
+    }
+
+    fftw_destroy_plan(plan_phi);
+    fftw_destroy_plan(plan_pi);
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
